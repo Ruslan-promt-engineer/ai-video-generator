@@ -1,0 +1,40 @@
+# === СЕКРЕТЫ И НАСТРОЙКИ (Никогда не загружаем!) ===
+.env
+.env.local
+.env.*.local
+
+# === ВИРТУАЛЬНОЕ ОКРУЖЕНИЕ (Занимает много места) ===
+venv/
+env/
+ENV/
+
+# === СГЕНЕРИРОВАННЫЕ ФАЙЛЫ (Тяжелые видео) ===
+generated_videos/
+*.mp4
+*.avi
+*.mov
+*.mkv
+output_video.mp4
+
+# === PYTHON ARTIFACTS (Мусор от интерпретатора) ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# === ОС И РЕДАКТОРЫ (Личные настройки) ===
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# === ЛОГИ (Если будешь писать логи) ===
+*.log

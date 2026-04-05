@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Video Generator</title>
+    <style>
+        :root { --bg: #0f172a; --card: #1e293b; --accent: #38bdf8; --text: #e2e8f0; --muted: #94a3b8; }
+        body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .container { background: var(--card); padding: 2rem; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); width: 100%; max-width: 480px; }
+        h1 { text-align: center; margin: 0 0 1.5rem; color: var(--accent); font-size: 1.8rem; }
+        textarea { width: 100%; padding: 12px; border: 1px solid #334155; border-radius: 8px; background: #0b1120; color: var(--text); resize: vertical; min-height: 90px; box-sizing: border-box; font-size: 1rem; }
+        textarea:focus { outline: 2px solid var(--accent); border-color: transparent; }
+        button { width: 100%; padding: 12px; margin-top: 1rem; background: var(--accent); color: #0f172a; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: 0.2s; font-size: 1rem; }
+        button:hover:not(:disabled) { background: #0ea5e9; }
+        button:disabled { background: #475569; cursor: not-allowed; }
+        .progress-box { margin-top: 1.5rem; display: none; }
+        .bar-bg { height: 8px; background: #334155; border-radius: 4px; overflow: hidden; }
+        .bar-fill { height: 100%; background: var(--accent); width: 0%; transition: width 0.3s ease; }
+        .status { text-align: center; margin-top: 8px; font-size: 0.9rem; color: var(--muted); }
+        .download { display: none; margin-top: 1.5rem; text-align: center; }
+        .download a { color: var(--accent); text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
+        .download a:hover { text-decoration: underline; }
+        .telegram-link { margin-top: 1.5rem; text-align: center; border-top: 1px solid #334155; padding-top: 1rem; }
+        .telegram-link a { display: inline-flex; align-items: center; gap: 8px; color: #229ED9; text-decoration: none; font-weight: 500; font-size: 0.95rem; transition: opacity 0.2s; }
+        .telegram-link a:hover { opacity: 0.8; text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎬 AI Video Gen</h1>
+        
+        <textarea id="prompt" placeholder="Опишите видео, например: Кинематографичный закат над океаном, 4K..."></textarea>
+        <button id="btn" onclick="start()">Сгенерировать</button>
+
+        <div class="progress-box" id="pBox">
+            <div class="bar-bg"><div class="bar-fill" id="pFill"></div></div>
+            <div class="status" id="pText">Ожидание...</div>
+        </div>
+
+        <div class="download" id="dBox">
+            <a id="dLink" href="#" download>📥 Скачать видео</a>
+        </div>
+
+        {% if telegram_link %}
+        <div class="telegram-link">
+            <a href="{{ telegram_link }}" target="_blank" rel="noopener noreferrer">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 0C5.37 0 0 5.37 0 12s5.37 12 12 12 12-5.37 12-12S18.63 0 12 0zm5.94 8.13l-1.97 9.28c-.15.67-.54.83-1.09.52l-3.01-2.22-1.45 1.4c-.16.16-.3.3-.61.3l.22-3.07 5.58-5.04c.24-.22-.05-.33-.38-.13l-6.9 4.33-2.97-.93c-.65-.2-.66-.65.14-.96l11.6-4.47c.54-.2 1.01.13.84.99z"/>
+                </svg>
+                Открыть Telegram-бота
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+        let taskId = null, interval = null;
+        const $ = id => document.getElementById(id);
+
+        async function start() {
+            const prompt = $('prompt').value.trim();
+            if (!prompt) return alert('Введите описание видео!');
+
+            $('btn').disabled = true; $('btn').textContent = 'Генерация...';
+            $('pBox').style.display = 'block'; $('dBox').style.display = 'none';
+            update(0, 'Отправка запроса...');
+
+            try {
+                const res = await fetch('/api/generate', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({prompt})
+                });
+                const data = await res.json();
+                if (data.error) throw new Error(data.error);
+                taskId = data.task_id;
+                interval = setInterval(poll, 2000);
+            } catch (e) {
+                alert('Ошибка: ' + e.message); reset();
+            }
+        }
+
+        async function poll() {
+            try {
+                const res = await fetch(`/api/status/${taskId}`);
+                const d = await res.json();
+                if (d.error) throw new Error(d.error);
+
+                update(d.progress, d.status === 'completed' ? 'Готово!' : d.status);
+
+                if (d.status === 'completed') {
+                    clearInterval(interval);
+                    $('dBox').style.display = 'block';
+                    $('dLink').href = `/api/download/${taskId}`;
+                    $('btn').disabled = false; $('btn').textContent = 'Сгенерировать';
+                } else if (d.status === 'failed' || d.status === 'error') {
+                    clearInterval(interval);
+                    alert('Ошибка: ' + (d.error || 'Неизвестно')); reset();
+                }
+            } catch (e) { console.error(e); }
+        }
+
+        function update(p, t) {
+            $('pFill').style.width = p + '%';
+            $('pText').textContent = `${t} (${p.toFixed(0)}%)`;
+        }
+
+        function reset() {
+            $('btn').disabled = false; $('btn').textContent = 'Сгенерировать';
+            $('pBox').style.display = 'none'; $('dBox').style.display = 'none';
+            if (interval) clearInterval(interval);
+        }
+    </script>
+</body>
+</html>
