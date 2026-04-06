@@ -1,4 +1,4 @@
-# video_service.py (замени целиком)
+# video_service.py
 import os
 import time
 import threading
@@ -69,6 +69,20 @@ class VideoService:
                     self.tasks[task_id]["error"] = str(e)
                 break
 
+    def _clean_old_videos(self, retention_hours: int = 48):
+        """Удаляет видеофайлы старше указанного времени (по умолчанию 48 часов)"""
+        try:
+            current_time = time.time()
+            retention_seconds = retention_hours * 3600  # 48 часов = 172800 секунд
+            
+            for filepath in self.video_dir.glob("*.mp4"):
+                file_age = current_time - filepath.stat().st_mtime
+                if file_age > retention_seconds:
+                    filepath.unlink()
+                    logging.info(f"🗑️ Удалено старое видео: {filepath.name} (возраст: {file_age/3600:.1f} ч)")
+        except Exception as e:
+            logging.error(f"❌ Ошибка при очистке старых видео: {e}")
+
     def _download_video(self, task_id: str):
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -81,6 +95,9 @@ class VideoService:
             with open(filename, "wb") as f:
                 for chunk in resp.iter_content(chunk_size=8192):
                     f.write(chunk)
+
+            # 🛡️ Автоочистка старых видео после успешного сохранения
+            self._clean_old_videos(retention_hours=48)
 
             with self._lock:
                 self.tasks[task_id]["file_path"] = str(filename)
